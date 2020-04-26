@@ -1,0 +1,20 @@
+[{
+        "name": "Dummy Survey 1",
+        "description": "Lorem Ipsum",
+        "version": 1,
+        "created_by": 1,
+        "status": "LOCKED"
+    },
+    {
+        "name": "Dummy Survey 1",
+        "description": "Lorem Ipsum 2",
+        "version": 2,
+        "created_by": 1
+    },
+    {
+        "name": "Dummy Survey 2",
+        "description": "Dolores Sit Amet",
+        "created_by": 1,
+        "version": 1
+    }
+]
