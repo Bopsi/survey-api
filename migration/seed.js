@@ -12,6 +12,11 @@ const users = require("./data/users.json"),
 async function seed() {
     await knex("users").insert(users);
     await knex("surveys").insert(surveys);
+    await knex("surveys").update({
+        locked_at: knex.fn.now(6)
+    }).where({
+        status: "LOCKED"
+    });
     await knex("questions").insert(questions);
     await knex("options").insert(options);
     await knex("question_option").insert(questionOptions);

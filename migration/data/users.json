@@ -2,5 +2,6 @@
     "first_name": "John",
     "last_name": "Doe",
     "email": "john.doe@acme.com",
-    "password": "Acme@123"
+    "password": "$2b$08$eH8noqpPp8tElvmalAGpnO.w.vlrRR0DFakyMH4QxlSnUTDSH/YUW",
+    "role": "ADMIN"
 }]

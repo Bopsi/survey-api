@@ -81,7 +81,7 @@ router.post('/signin', async (req, res) => {
                 message: 'The credentials you provided is incorrect'
             });
         }
-        const token = Helper.generateToken(rows[0].id);
+        const token = Helper.generateToken(rows[0].id, rows[0].role);
         await config.knex("users").update({
             last_login: config.knex.fn.now(6)
         });

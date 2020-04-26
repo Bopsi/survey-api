@@ -15,9 +15,10 @@ module.exports.comparePassword = function (hashPassword, password) {
     return bcrypt.compareSync(password, hashPassword);
 };
 
-module.exports.generateToken = function (id) {
+module.exports.generateToken = function (id, role) {
     const token = jwt.sign({
-            id: id
+            id: id,
+            role: role
         },
         process.env.SECRET, {
             expiresIn: '7d'

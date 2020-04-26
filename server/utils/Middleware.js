@@ -2,9 +2,7 @@ const jwt = require('jsonwebtoken');
 const config = require("../../config");
 
 module.exports.verifyToken = async (req, res, next) => {
-    console.log("Middleware");
     const token = req.headers['x-access-token'];
-    console.log("Token", token);
     if (!token) {
         return res.status(400).send({
             'message': 'Token is not provided'
@@ -12,18 +10,16 @@ module.exports.verifyToken = async (req, res, next) => {
     }
     try {
         const decoded = await jwt.verify(token, process.env.SECRET);
-        console.log("decoded", decoded);
         const rows = await config.knex("users").where("id", decoded.id);
-        console.log("rows", rows);
         if (!rows[0]) {
             return res.status(400).send({
                 'message': 'The token you provided is invalid'
             });
         }
         req.user = {
-            id: decoded.id
+            id: decoded.id,
+            role: decoded.role
         };
-        console.log(req.user);
         next();
     } catch (error) {
         return res.status(400).send(error);

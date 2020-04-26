@@ -4,7 +4,7 @@
   "description": "Smart Survey REST API",
   "main": "index.js",
   "scripts": {
-    "start": "DEBUG=api:* node index.js",
+    "start": "DEBUG=api:*,knex:* node index.js",
     "migration": "DEBUG=api:* node migration/up.js",
     "seed": "DEBUG=api:* node migration/seed.js",
     "rollback": "DEBUG=api:* node migration/down.js",
@@ -21,6 +21,7 @@
     "express": "^4.17.1",
     "jsonwebtoken": "^8.5.1",
     "knex": "^0.21.0",
+    "lodash": "^4.17.15",
     "pg": "^8.0.3"
   }
 }
