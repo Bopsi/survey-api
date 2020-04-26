@@ -1,0 +1,34 @@
+[{
+        "value": "YES",
+        "description": "Yes",
+        "type": "SYSTEM"
+    },
+    {
+        "value": "NO",
+        "description": "No",
+        "type": "SYSTEM"
+    },
+    {
+        "value": "NA",
+        "description": "Not Applicable",
+        "type": "SYSTEM"
+    },
+    {
+        "value": "M",
+        "description": "Male",
+        "type": "SYSTEM"
+    }, {
+        "value": "F",
+        "description": "Female",
+        "type": "SYSTEM"
+    }, {
+        "value": "O",
+        "description": "Other",
+        "type": "SYSTEM"
+    }, {
+        "value": "T",
+        "description": "Transgender",
+        "type": "CUSTOM",
+        "survey_id": "1"
+    }
+]

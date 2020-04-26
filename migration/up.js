@@ -42,8 +42,8 @@ async function up() {
     });
     await knex.schema.createTable('question_option', (table) => {
         table.increments();
-        table.integer('quesntion_id').notNullable();
-        table.text('option_id').notNullable();
+        table.integer('question_id').notNullable();
+        table.integer('option_id').notNullable();
     });
 }
 

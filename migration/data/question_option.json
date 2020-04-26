@@ -1,0 +1,33 @@
+[{
+        "question_id": 2,
+        "option_id": 4
+    },
+    {
+        "question_id": 2,
+        "option_id": 5
+    },
+    {
+        "question_id": 2,
+        "option_id": 6
+    },
+    {
+        "question_id": 4,
+        "option_id": 1
+    },
+    {
+        "question_id": 4,
+        "option_id": 2
+    },
+    {
+        "question_id": 6,
+        "option_id": 4
+    },
+    {
+        "question_id": 6,
+        "option_id": 5
+    }, {
+        "question_id": 6,
+        "option_id": 7
+    }
+
+]
