@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 
-const debug = require("debug")("api:server"),
-    http = require("http"),
-    {
-        format
-    } = require("util");
+const debug    = require("debug")("api:server"),
+      http     = require("http"),
+      {format} = require("util");
 
 const config = require("./config");
 const server = require("./server");
-const pjson = require("./package.json");
+const pjson  = require("./package.json");
 
 const app = http.createServer(server);
 

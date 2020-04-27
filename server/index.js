@@ -1,6 +1,6 @@
-const cors = require("cors"),
-    express = require("express"),
-    bodyParser = require("body-parser");
+const cors       = require("cors"),
+      express    = require("express"),
+      bodyParser = require("body-parser");
 
 const app = express();
 app.use(cors());
@@ -9,8 +9,8 @@ app.use(bodyParser.urlencoded({
     extended: false
 }));
 
-const user = require("./routes/user"),
-    survey = require("./routes/survey");
+const user   = require("./routes/user"),
+      survey = require("./routes/survey");
 
 const middleware = require("./utils/Middleware");
 
