@@ -6,9 +6,13 @@ const config = require("../../config");
 
 const router = express.Router();
 
+/**
+ * GET: Retrieves list of surveys
+ * POST: Create new survey
+ */
 router.route('/')
 .get(async (req, res) => {
-    debug("GET: /surveys ;");
+    debug(`GET: /surveys?${JSON.stringify(req.query)} ;`);
 
     if(!req.user.id || req.user.role !== 'ADMIN') {
         return res.status(403).send({
@@ -17,7 +21,13 @@ router.route('/')
     }
 
     try {
-        const surveys = await config.knex("surveys").orderBy("id");
+        let surveysQuery = config.knex("surveys").orderBy("id");
+
+        if(!req.query.includeDeleted){
+            surveysQuery=surveysQuery.where("is_deleted",false);
+        }
+
+        const surveys = await surveysQuery;
         return res.status(200).send(surveys);
     } catch(error) {
         debug(error);
@@ -66,23 +76,34 @@ router.route('/')
     }
 });
 
+/**
+ * GET: Retrieves a survey details
+ * PUT: Modifies a survey (only description at the moment)
+ * DELETE: Deletes a survey
+ */
 router.route('/:surveyid')
 .get(async (req, res) => {
     debug(`GET: /surveys/${req.params.surveyid} ;`);
     const surveyid = req.params.surveyid;
 
     try {
-        const questions = config.knex("questions as q")
+        const questionsQuery = config.knex("questions as q")
         .leftJoin("question_option as qo", "q.id", "qo.question_id")
         .leftJoin("options as o", "qo.option_id", "o.id")
         .select("q.*", config.knex.raw("to_json(array_remove(array_agg(o),NULL)) \"options\""))
         .groupBy("q.id");
 
-        const surveys = await config.knex("surveys as s")
-        .leftJoin(questions.as("q"), "s.id", "q.survey_id")
+        let surveysQuery = config.knex("surveys as s")
+        .leftJoin(questionsQuery.as("q"), "s.id", "q.survey_id")
         .select("s.*", config.knex.raw("to_json(array_remove(array_agg(q),NULL)) questions"))
         .where("s.id", surveyid)
         .groupBy("s.id");
+
+        if(req.user.role !== 'ADMIN') {
+            surveysQuery = surveysQuery.andWhere("s.is_deleted", false);
+        }
+
+        const surveys = await surveysQuery;
 
         if(surveys.length > 0) {
             return res.status(200).send(surveys[0]);
@@ -133,8 +154,57 @@ router.route('/:surveyid')
     }
 })
 .delete(async (req, res) => {
-    try {
+    debug(`DELETE: /surveys/${req.params.surveyid} - %j ;`, req.body);
 
+    if(!req.user.id || req.user.role !== 'ADMIN') {
+        return res.status(403).send({
+            message: 'Unauthorized'
+        });
+    }
+
+    try {
+        const rows = await config.knex("surveys")
+        .where("id", req.params.surveyid);
+
+        if(rows.length === 0) {
+            return res.status(404).send({
+                message: 'Survey not found'
+            });
+        }
+
+        await config.knex.transaction(async trx => {
+            await config.knex("surveys").update({
+                is_deleted: true
+            })
+            .where("id", req.params.surveyid)
+            .transacting(trx);
+
+            let ids = await config.knex("questions").update({
+                is_deleted: true
+            })
+            .where("survey_id", req.params.surveyid)
+            .returning("id")
+            .transacting(trx);
+
+            _.map("ids", (id) => {
+                return id.id
+            });
+
+            await config.knex("question_option")
+            .update({
+                is_deleted: true
+            })
+            .whereIn("question_id", ids)
+            .transacting(trx);
+
+            await config.knex("options").update({
+                is_deleted: true
+            })
+            .where("survey_id", req.params.surveyid)
+            .transacting(trx);
+        });
+
+        return res.status(200).send({});
     } catch(error) {
         debug(error);
         return res.status(500).send(error);
@@ -167,6 +237,12 @@ router.post('/:surveyid/lock', async (req, res) => {
         if(rows[0].status === 'LOCKED') {
             return res.status(409).send({
                 message: 'Survey already locked'
+            });
+        }
+
+        if(rows[0].is_deleted) {
+            return res.status(409).send({
+                message: 'Survey deleted'
             });
         }
 
@@ -224,11 +300,16 @@ router.post('/:surveyid/version', async (req, res) => {
             const version = rows[0].max + 1;
 
             // Insert new survey
-            rows            = await config.knex("surveys")
+            let description = `Version ${version}: ${survey.description.trim()}`;
+            if(req.body.description && req.body.description.trim() && req.body.description.trim() !== description) {
+                description = req.body.description.trim();
+            }
+            rows      = await config.knex("surveys")
             .insert({
                 name: survey.name,
-                description: req.body.description || `Version ${version}: ${survey.description}`,
-                version: version
+                description: description,
+                version: version,
+                created_by: req.user.id
             })
             .returning("*")
             .transacting(trx);
@@ -238,7 +319,8 @@ router.post('/:surveyid/version', async (req, res) => {
             rows = await config.knex("questions")
             .select("id", config.knex.raw(`${newSurvey.id} as survey_id`), "description",
             "note", "mandatory", "type", "attachments")
-            .where("survey_id", survey.id);
+            .where("survey_id", survey.id)
+            .andWhere("is_deleted",false);
 
             const qids   = [];
             const qidMap = {};
@@ -268,7 +350,8 @@ router.post('/:surveyid/version', async (req, res) => {
                 .select("id", config.knex.raw(`${newSurvey.id} as survey_id`),
                 "value", "description", "type")
                 .where("survey_id", survey.id)
-                .andWhere("type", "CUSTOM");
+                .andWhere("type", "CUSTOM")
+                .andWhere("is_deleted",false);
 
                 // If custom options exists
                 if(rows.length > 0) {
@@ -291,7 +374,9 @@ router.post('/:surveyid/version', async (req, res) => {
                 }
 
                 // Get old question option mapping
-                rows    = await config.knex("question_option").whereIn("question_id", qids);
+                rows    = await config.knex("question_option")
+                .whereIn("question_id", qids)
+                .andWhere("is_deleted",false);
                 let qos = [];
 
                 // Create new question option mapping
