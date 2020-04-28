@@ -47,7 +47,7 @@
         "survey_id": 3,
         "description": "ID Number",
         "mandatory": false,
-        "type": "RADIO",
+        "type": "TEXT",
         "attachments": false
     }
 ]
