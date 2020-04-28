@@ -7,6 +7,7 @@
     "start": "DEBUG=api:*,knex:* node index.js",
     "migration": "DEBUG=api:* node migration/up.js",
     "seed": "DEBUG=api:* node migration/seed.js",
+    "reboot": "DEBUG=api:* node migration/down.js && DEBUG=api:* node migration/up.js && DEBUG=api:* node migration/seed.js",
     "rollback": "DEBUG=api:* node migration/down.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

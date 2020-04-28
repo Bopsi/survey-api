@@ -7,7 +7,6 @@ const config = require("../../config"),
 const router = express.Router();
 
 router.post('/signup', async (req, res) => {
-    n
     debug("POST:/users/signup - %j ;", req.body);
 
     if(!req.body.email || !req.body.password || !req.body.first_name || !req.body.last_name) {

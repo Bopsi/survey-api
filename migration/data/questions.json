@@ -12,7 +12,13 @@
         "type": "RADIO",
         "attachments": false
     },
-
+    {
+        "survey_id": 1,
+        "description": "Interested in",
+        "mandatory": true,
+        "type": "CHECKBOX",
+        "attachments": false
+    },
     {
         "survey_id": 2,
         "description": "Name",
