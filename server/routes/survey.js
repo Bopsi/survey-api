@@ -451,7 +451,7 @@ router.route('/:surveyid/questions')
             });
         }
 
-        if(rows[0].id !== req.params.surveyid) {
+        if(rows[0].id !== Number(req.params.surveyid)) {
             return res.status(400).send({
                 message: 'Incorrect Survey'
             });
