@@ -1,30 +1,35 @@
-[{
+[
+    {
         "survey_id": 1,
         "description": "Name",
         "mandatory": true,
         "type": "TEXT",
-        "attachments": false
+        "attachments": false,
+        "index": 1
     },
     {
         "survey_id": 1,
         "description": "Gender",
         "mandatory": true,
         "type": "RADIO",
-        "attachments": false
+        "attachments": false,
+        "index": 2
     },
     {
         "survey_id": 1,
         "description": "Interested in",
         "mandatory": true,
         "type": "CHECKBOX",
-        "attachments": false
+        "attachments": false,
+        "index": 3
     },
     {
         "survey_id": 2,
         "description": "Name",
         "mandatory": true,
         "type": "TEXT",
-        "attachments": false
+        "attachments": false,
+        "index": 1
     },
     {
         "survey_id": 2,
@@ -32,28 +37,31 @@
         "note": "Upload age proof",
         "mandatory": true,
         "type": "RADIO",
-        "attachments": true
+        "attachments": true,
+        "index": 2
     },
-
     {
         "survey_id": 3,
         "description": "Name",
         "mandatory": true,
         "type": "TEXT",
-        "attachments": false
+        "attachments": false,
+        "index": 1
     },
     {
         "survey_id": 3,
         "description": "Interested in",
         "mandatory": true,
         "type": "CHECKBOX",
-        "attachments": false
+        "attachments": false,
+        "index": 2
     },
     {
         "survey_id": 3,
         "description": "ID Number",
         "mandatory": false,
         "type": "TEXT",
-        "attachments": false
+        "attachments": false,
+        "index": 3
     }
 ]

@@ -23,8 +23,8 @@ router.route('/')
     try {
         let surveysQuery = config.knex("surveys").orderBy("id");
 
-        if(!req.query.includeDeleted){
-            surveysQuery=surveysQuery.where("is_deleted",false);
+        if(!req.query.includeDeleted) {
+            surveysQuery = surveysQuery.where("is_deleted", false);
         }
 
         const surveys = await surveysQuery;
@@ -87,9 +87,12 @@ router.route('/:surveyid')
     const surveyid = req.params.surveyid;
 
     try {
-        const questionsQuery = config.knex("questions as q")
-        .leftJoin("question_option as qo", "q.id", "qo.question_id")
+        const optionsQuery =  config.knex("question_option as qo")
         .leftJoin("options as o", "qo.option_id", "o.id")
+        .select("o.*","qo.index","qo.id as qo_id","qo.question_id");
+
+        const questionsQuery = config.knex("questions as q")
+        .leftJoin(optionsQuery.as("o"), "q.id", "o.question_id")
         .select("q.*", config.knex.raw("to_json(array_remove(array_agg(o),NULL)) \"options\""))
         .groupBy("q.id");
 
@@ -106,7 +109,14 @@ router.route('/:surveyid')
         const surveys = await surveysQuery;
 
         if(surveys.length > 0) {
-            return res.status(200).send(surveys[0]);
+            const survey     = surveys[0];
+            survey.questions = _.chain(survey.questions)
+            .sortBy("index")
+            .map(function(question) {
+                question.options = _.sortBy(question.options, "index");
+                return question;
+            });
+            return res.status(200).send(survey);
         } else {
             return res.status(404).send({
                 message: "Survey not found"
@@ -320,7 +330,7 @@ router.post('/:surveyid/version', async (req, res) => {
             .select("id", config.knex.raw(`${newSurvey.id} as survey_id`), "description",
             "note", "mandatory", "type", "attachments")
             .where("survey_id", survey.id)
-            .andWhere("is_deleted",false);
+            .andWhere("is_deleted", false);
 
             const qids   = [];
             const qidMap = {};
@@ -351,7 +361,7 @@ router.post('/:surveyid/version', async (req, res) => {
                 "value", "description", "type")
                 .where("survey_id", survey.id)
                 .andWhere("type", "CUSTOM")
-                .andWhere("is_deleted",false);
+                .andWhere("is_deleted", false);
 
                 // If custom options exists
                 if(rows.length > 0) {
@@ -376,7 +386,7 @@ router.post('/:surveyid/version', async (req, res) => {
                 // Get old question option mapping
                 rows    = await config.knex("question_option")
                 .whereIn("question_id", qids)
-                .andWhere("is_deleted",false);
+                .andWhere("is_deleted", false);
                 let qos = [];
 
                 // Create new question option mapping
