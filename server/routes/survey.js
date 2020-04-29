@@ -327,7 +327,7 @@ router.post('/:surveyid/version', async (req, res) => {
             // Fetch linked questions
             rows = await config.knex("questions")
             .select("id", config.knex.raw(`${newSurvey.id} as survey_id`), "description",
-            "note", "mandatory", "type", "attachments")
+            "note", "mandatory", "type", "attachments","index")
             .where("survey_id", survey.id)
             .andWhere("is_deleted", false);
 
@@ -392,7 +392,8 @@ router.post('/:surveyid/version', async (req, res) => {
                 rows.forEach(row => {
                     qos.push({
                         question_id: qidMap[row.question_id],
-                        option_id: oidMap[row.option_id] || row.option_id
+                        option_id: oidMap[row.option_id] || row.option_id,
+                        index: row.index
                     });
                 });
 
