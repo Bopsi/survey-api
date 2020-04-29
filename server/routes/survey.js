@@ -60,16 +60,15 @@ router.route('/')
             });
         }
 
-        await config.knex("surveys").insert({
+        const ids = await config.knex("surveys").insert({
             name: req.body.name,
             description: req.body.description,
             version: 1,
             created_by: req.user.id
         })
+        .returning("id");
 
-        return res.status(201).send({
-            message: 'Survey created'
-        });
+        return res.status(201).send({id: ids[0]});
     } catch(error) {
         debug(error);
         return res.status(500).send(error);
@@ -87,9 +86,9 @@ router.route('/:surveyid')
     const surveyid = req.params.surveyid;
 
     try {
-        const optionsQuery =  config.knex("question_option as qo")
+        const optionsQuery = config.knex("question_option as qo")
         .leftJoin("options as o", "qo.option_id", "o.id")
-        .select("o.*","qo.index","qo.id as qo_id","qo.question_id");
+        .select("o.*", "qo.index", "qo.id as qo_id", "qo.question_id");
 
         const questionsQuery = config.knex("questions as q")
         .leftJoin(optionsQuery.as("o"), "q.id", "o.question_id")
@@ -147,7 +146,7 @@ router.route('/:surveyid')
         }
 
         if(rows[0].status === 'LOCKED') {
-            return res.status(409).send({
+            return res.status(400).send({
                 message: 'Locked survey cannot be modified'
             });
         }
@@ -220,7 +219,7 @@ router.route('/:surveyid')
         return res.status(500).send(error);
     }
 
-})
+});
 
 /**
  * Locks an unlocked survey
@@ -245,13 +244,13 @@ router.post('/:surveyid/lock', async (req, res) => {
         }
 
         if(rows[0].status === 'LOCKED') {
-            return res.status(409).send({
+            return res.status(400).send({
                 message: 'Survey already locked'
             });
         }
 
         if(rows[0].is_deleted) {
-            return res.status(409).send({
+            return res.status(400).send({
                 message: 'Survey deleted'
             });
         }
@@ -296,7 +295,7 @@ router.post('/:surveyid/version', async (req, res) => {
         }
 
         if(rows[0].status === 'UNLOCKED') {
-            return res.status(409).send({
+            return res.status(400).send({
                 message: 'Unlocked survey cannot be versioned'
             });
         }
@@ -414,6 +413,98 @@ router.post('/:surveyid/version', async (req, res) => {
             message: 'Internal Server Error'
         });
     }
+});
+
+/**
+ * GET: Retrieves list of questions for a survey
+ * POST: Creates a question for a survey
+ */
+router.route('/:surveyid/questions')
+.get(async (req, res) => {
+
+})
+.post(async (req, res) => {
+    debug("POST: /:surveyid/questions", req.body);
+
+    if(!req.user.id || req.user.role !== 'ADMIN') {
+        return res.status(403).send({
+            message: 'Unauthorized'
+        });
+    }
+
+    if(!req.body.description) {
+        return res.status(400).send({
+            message: 'Some values are missing'
+        });
+    }
+
+    try {
+        const rows = await config.knex("surveys as s")
+        .leftJoin("questions as q", "s.id", "q.survey_id")
+        .select("s.*", config.knex.raw("max(index)+1 as max"))
+        .where("s.id", req.params.surveyid)
+        .groupBy("s.id");
+
+        if(rows.length === 0) {
+            return res.status(404).send({
+                message: 'Survey not found'
+            });
+        }
+
+        if(rows[0].id !== req.params.surveyid) {
+            return res.status(400).send({
+                message: 'Incorrect Survey'
+            });
+        }
+
+        if(rows[0].status === 'LOCKED') {
+            return res.status(400).send({
+                message: 'Survey Locked'
+            });
+        }
+
+        if(rows[0].is_deleted) {
+            return res.status(400).send({
+                message: 'Survey Deleted'
+            });
+        }
+
+        const index = rows[0].max || 1;
+
+        await config.knex("questions").insert({
+            survey_id: req.params.surveyid,
+            description: req.body.description,
+            note: req.body.note,
+            mandatory: req.body.mandatory,
+            type: req.body.type,
+            attachments: req.body.attachments,
+            index: index
+        });
+
+        return res.status(200).send({});
+    } catch(error) {
+        debug(error);
+        return res.status(500).send({
+            error: error,
+            message: 'Internal Server Error'
+        });
+    }
+});
+
+/**
+ * GET: Retrieves a question by survey id and question id
+ * PUT: Modifies a question
+ * DELETE: Deletes a question
+ */
+router.route('/:surveyid/questions/:questionid')
+.get(async (req, res) => {
+
+})
+.put(async (req, res) => {
+
+})
+.delete(async (req, res) => {
+
 });
 
 module.exports = router;
