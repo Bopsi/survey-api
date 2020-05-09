@@ -47,11 +47,37 @@ async function up() {
     });
     await knex.schema.createTable('question_option', (table) => {
         table.increments();
-        table.integer('question_id').notNullable();
-        table.integer('option_id').notNullable();
+        table.integer('question_id').references('id').inTable('questions');
+        table.integer('option_id').references('id').inTable('options');
         table.boolean('is_deleted').defaultTo(false);
         table.integer('index').unsigned().notNullable();
         table.unique(['question_id', 'index']);
+    });
+    await knex.schema.createTable('accesses', (table) => {
+        table.increments();
+        table.integer('survey_id').references('id').inTable('surveys');
+        table.integer('user_id').references('id').inTable('users');
+        table.boolean('is_active').defaultTo(true);
+        table.unique(['survey_id','user_id']);
+    });
+    await knex.schema.createTable('reports', (table) => {
+        table.increments();
+        table.integer('survey_id').references('id').inTable('surveys');
+        table.integer('created_by').references('id').inTable('users');
+        table.timestamp('created_at').defaultTo(knex.fn.now(6));
+        table.timestamp('locked_at').nullable();
+        table.text('subject_name').notNullable();
+        table.text('subject_description').nullable();
+        table.boolean('is_deleted').defaultTo(false);
+    });
+    await knex.schema.createTable('answers', (table) => {
+        table.increments();
+        table.integer('report_id').references('id').inTable('reports');
+        table.integer('question_id').references('id').inTable('questions');
+        table.text('answer').nullable();
+        table.integer('option_id').unsigned().nullable();
+        table.boolean('is_answered').defaultTo(false);
+        table.unique(['report_id', 'question_id']);
     });
 }
 

@@ -255,14 +255,31 @@ router.post('/:surveyid/lock', async (req, res) => {
             });
         }
 
-        const surveys = await config.knex("surveys").update({
-            status: "LOCKED",
-            locked_at: config.knex.fn.now(6)
-        })
-        .returning("*")
-        .where("id", req.params.surveyid);
+        let surveys = [];
 
-        return res.status(200).send(surveys[0]);
+        await config.knex.transaction(async trx => {
+            surveys = await config.knex("surveys").update({
+                status: "LOCKED",
+                locked_at: config.knex.fn.now(6)
+            })
+            .returning("*")
+            .where("id", req.params.surveyid)
+            .transacting(trx);
+
+            await config.knex("accesses").insert({
+                survey_id: req.params.surveyid,
+                user_id: req.user.id
+            })
+            .transacting(trx);
+        });
+
+        if(surveys.length>0){
+            return res.status(200).send(surveys[0]);
+        } else {
+            return res.status(500).send({
+                message: 'Internal Server Error'
+            });
+        }
     } catch(error) {
         debug(error);
         return res.status(500).send({

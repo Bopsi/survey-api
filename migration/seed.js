@@ -1,12 +1,13 @@
-const debug = require("debug")("api:migration:seed");
+const debug  = require("debug")("api:migration:seed");
 const config = require("../config");
-const knex = config.knex;
+const knex   = config.knex;
 
-const users = require("./data/users.json"),
-    surveys = require("./data/surveys.json"),
-    questions = require("./data/questions.json"),
-    options = require("./data/options.json"),
-    questionOptions = require("./data/question_option.json")
+const users           = require("./data/users.json"),
+      surveys         = require("./data/surveys.json"),
+      questions       = require("./data/questions.json"),
+      options         = require("./data/options.json"),
+      questionOptions = require("./data/question_option.json"),
+      accesses        = require("./data/accesses.json");
 
 
 async function seed() {
@@ -20,15 +21,16 @@ async function seed() {
     await knex("questions").insert(questions);
     await knex("options").insert(options);
     await knex("question_option").insert(questionOptions);
+    await knex("accesses").insert(accesses);
 }
 
 seed()
-    .then(res => {
-        debug("Seed Sucess");
-        process.exit();
-    })
-    .catch(error => {
-        debug("Seed Error");
-        debug("%O", error);
-        process.exit();
-    });
+.then(res => {
+    debug("Seed Sucess");
+    process.exit();
+})
+.catch(error => {
+    debug("Seed Error");
+    debug("%O", error);
+    process.exit();
+});

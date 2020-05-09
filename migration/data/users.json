@@ -1,7 +1,16 @@
-[{
-    "first_name": "John",
-    "last_name": "Doe",
-    "email": "john.doe@acme.com",
-    "password": "$2b$08$eH8noqpPp8tElvmalAGpnO.w.vlrRR0DFakyMH4QxlSnUTDSH/YUW",
-    "role": "ADMIN"
-}]
+[
+    {
+        "first_name": "John",
+        "last_name": "Doe",
+        "email": "john.doe@acme.com",
+        "password": "$2b$08$eH8noqpPp8tElvmalAGpnO.w.vlrRR0DFakyMH4QxlSnUTDSH/YUW",
+        "role": "ADMIN"
+    },
+    {
+        "first_name": "Evan",
+        "last_name": "You",
+        "email": "evan.you@noas.com",
+        "password": "$2b$08$8.APe9Xf7ioyW2GUNRpgH.7i1RWKSXIFS37zTQBbhkm8u98rWeCXa",
+        "role": "USER"
+    }
+]

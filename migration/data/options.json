@@ -1,4 +1,5 @@
-[{
+[
+    {
         "value": "YES",
         "description": "Yes",
         "type": "SYSTEM"
@@ -17,15 +18,18 @@
         "value": "M",
         "description": "Male",
         "type": "SYSTEM"
-    }, {
+    },
+    {
         "value": "F",
         "description": "Female",
         "type": "SYSTEM"
-    }, {
+    },
+    {
         "value": "O",
         "description": "Other",
         "type": "SYSTEM"
-    }, {
+    },
+    {
         "value": "T",
         "description": "Transgender",
         "type": "CUSTOM",
