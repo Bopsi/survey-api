@@ -436,7 +436,8 @@ router.route('/:surveyid/questions')
         .leftJoin(optionsQuery.as("o"), "q.id", "o.question_id")
         .select("q.*", config.knex.raw("to_json(array_remove(array_agg(o),NULL)) \"options\""))
         .groupBy("q.id")
-        .where("q.survey_id", surveyid);
+        .where("q.survey_id", surveyid)
+        .andWhere("q.is_deleted", false);
 
         let questions = await questionsQuery;
 
@@ -564,11 +565,63 @@ router.route('/:surveyid/questions/:questionid')
 
 })
 .delete(async (req, res) => {
+    const surveyid   = req.params.surveyid;
+    const questionid = req.params.questionid;
 
+    debug(`DELETE: /surveys/${surveyid}/questions/${questionid} ;`);
+
+    if(!req.user.id || req.user.role !== 'ADMIN') {
+        return res.status(403).send({
+            message: 'Unauthorized'
+        });
+    }
+
+    try {
+        const rows = await config.knex("surveys")
+        .where("id", surveyid);
+
+        if(rows.length === 0) {
+            return res.status(404).send({
+                message: 'Survey not found'
+            });
+        }
+
+        if(rows[0].status === 'LOCKED') {
+            return res.status(400).send({
+                message: 'Locked survey cannot be modified'
+            });
+        }
+
+        if(rows[0].is_deleted) {
+            return res.status(400).send({
+                message: 'Deleted survey cannot be modified'
+            });
+        }
+
+        const index = await config.knex("questions")
+        .update({is_deleted: true})
+        .where("id", questionid)
+        .andWhere("survey_id", surveyid)
+        .returning("index");
+
+        // update questions q2 set index = (select index+1 from questions q1 where q1.id=q2.id);
+        if(index.length > 0) {
+
+            await config.knex("questions")
+            .decrement("index", 1)
+            .andWhere("survey_id", surveyid)
+            .andWhere("index", ">", index[0]);
+        }
+
+        return res.status(200).send();
+    } catch(error) {
+        debug(error);
+        return res.status(500).send(error);
+    }
 });
 
 /**
- * Moves question order up or down
+ * Moves question order UP or DOWN
  */
 router.post('/:surveyid/questions/:questionid/reorder', async (req, res) => {
     const surveyid   = req.params.surveyid;
@@ -620,7 +673,7 @@ router.post('/:surveyid/questions/:questionid/reorder', async (req, res) => {
         }
 
         let q1 = await config.knex("questions as q").select("q.id", "q.index")
-        .join("surveys as s","q.survey_id", "s.id")
+        .join("surveys as s", "q.survey_id", "s.id")
         .where("s.id", surveyid)
         .andWhere("q.id", questionid);
 
@@ -630,10 +683,10 @@ router.post('/:surveyid/questions/:questionid/reorder', async (req, res) => {
             });
         }
 
-        let q2                   = await config.knex("questions as q").select("q.id", "q.index")
-        .join("surveys as s","q.survey_id", "s.id")
+        let q2 = await config.knex("questions as q").select("q.id", "q.index")
+        .join("surveys as s", "q.survey_id", "s.id")
         .where("s.id", surveyid)
-        .andWhere("q.index", q1[0].index+delta);
+        .andWhere("q.index", q1[0].index + delta);
 
         if(q2.length === 0) {
             return res.status(400).send({
@@ -641,11 +694,11 @@ router.post('/:surveyid/questions/:questionid/reorder', async (req, res) => {
             });
         }
 
-        debug(q1,q2);
+        debug(q1, q2);
 
         await Promise.all([
-            config.knex("questions").update({index: q1[0].index}).where("id",q2[0].id),
-            config.knex("questions").update({index: q2[0].index}).where("id",q1[0].id)
+            config.knex("questions").update({index: q1[0].index}).where("id", q2[0].id),
+            config.knex("questions").update({index: q2[0].index}).where("id", q1[0].id)
         ]);
         return res.status(200).send();
     } catch(error) {

@@ -4,7 +4,7 @@ const knex = conf.knex;
 
 async function down() {
     await knex.schema.dropTable("answers");
-    await knex.schema.dropTable("reports");
+    await knex.schema.dropTable("records");
     await knex.schema.dropTable("accesses");
     await knex.schema.dropTable("question_option");
     await knex.schema.dropTable("options");

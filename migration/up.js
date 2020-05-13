@@ -58,7 +58,7 @@ async function up() {
         table.boolean('is_active').defaultTo(true);
         table.unique(['survey_id','user_id']);
     });
-    await knex.schema.createTable('reports', (table) => {
+    await knex.schema.createTable('records', (table) => {
         table.increments();
         table.integer('survey_id').references('id').inTable('surveys');
         table.integer('created_by').references('id').inTable('users');
@@ -70,12 +70,12 @@ async function up() {
     });
     await knex.schema.createTable('answers', (table) => {
         table.increments();
-        table.integer('report_id').references('id').inTable('reports');
+        table.integer('record_id').references('id').inTable('records');
         table.integer('question_id').references('id').inTable('questions');
         table.text('answer').nullable();
         table.integer('option_id').unsigned().nullable();
         table.boolean('is_answered').defaultTo(false);
-        table.unique(['report_id', 'question_id']);
+        table.unique(['record_id', 'question_id']);
     });
 }
 
