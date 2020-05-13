@@ -3,7 +3,6 @@ const config = require("../../config");
 
 module.exports.verifyToken = async (req, res, next) => {
     const token = req.headers['x-access-token'];
-    console.log("received a req", JSON.stringify(req.headers));
     if(!token) {
         console.log("Token not found");
         return res.status(400).send({

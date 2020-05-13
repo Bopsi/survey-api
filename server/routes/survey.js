@@ -430,7 +430,8 @@ router.route('/:surveyid/questions')
     try {
         const optionsQuery = config.knex("question_option as qo")
         .leftJoin("options as o", "qo.option_id", "o.id")
-        .select("o.*", "qo.index", "qo.id as qo_id", "qo.question_id");
+        .select("o.*", "qo.index", "qo.id as qo_id", "qo.question_id")
+        .where("qo.is_deleted", false);
 
         const questionsQuery = config.knex("questions as q")
         .leftJoin(optionsQuery.as("o"), "q.id", "o.question_id")
@@ -501,7 +502,7 @@ router.route('/:surveyid/questions')
 
         const index = rows[0].max || 1;
 
-        await config.knex("questions").insert({
+        let ids = await config.knex("questions").insert({
             survey_id: req.params.surveyid,
             description: req.body.description,
             note: req.body.note,
@@ -509,9 +510,10 @@ router.route('/:surveyid/questions')
             type: req.body.type,
             attachments: req.body.attachments,
             index: index
-        });
+        })
+        .returning("id");
 
-        return res.status(200).send({});
+        return res.status(200).send({id: ids[0]});
     } catch(error) {
         debug(error);
         return res.status(500).send({
@@ -562,7 +564,56 @@ router.route('/:surveyid/questions/:questionid')
     }
 })
 .put(async (req, res) => {
+    const surveyid   = req.params.surveyid;
+    const questionid = req.params.questionid;
 
+    debug(`PUT: /surveys/${surveyid}/questions/${questionid} - ${JSON.stringify(req.body)} ;`);
+
+    if(!req.user.id || req.user.role !== 'ADMIN') {
+        return res.status(403).send({
+            message: 'Unauthorized'
+        });
+    }
+
+    try {
+        const rows = await config.knex("surveys")
+        .where("id", surveyid);
+
+        if(rows.length === 0) {
+            return res.status(404).send({
+                message: 'Survey not found'
+            });
+        }
+
+        if(rows[0].status === 'LOCKED') {
+            return res.status(400).send({
+                message: 'Locked survey cannot be modified'
+            });
+        }
+
+        if(rows[0].is_deleted) {
+            return res.status(400).send({
+                message: 'Deleted survey cannot be modified'
+            });
+        }
+
+        await config.knex("questions")
+        .update({
+            description: req.body.description,
+            note: req.body.note,
+            mandatory: req.body.mandatory,
+            type: req.body.type,
+            attachments: req.body.attachments
+        })
+        .where("id", questionid)
+        .andWhere("survey_id", surveyid)
+        .returning("index");
+
+        return res.status(200).send();
+    } catch(error) {
+        debug(error);
+        return res.status(500).send(error);
+    }
 })
 .delete(async (req, res) => {
     const surveyid   = req.params.surveyid;
@@ -645,12 +696,13 @@ router.post('/:surveyid/questions/:questionid/reorder', async (req, res) => {
                     message: 'Incorrect reorder direction'
                 });
             }
+        } else if(req.body.index) {
+
         } else {
             return res.status(400).send({
-                message: 'Reorder direction missing'
+                message: 'Reorder direction or index is missing'
             });
         }
-
         const rows = await config.knex("surveys")
         .where("id", surveyid);
 
@@ -672,10 +724,18 @@ router.post('/:surveyid/questions/:questionid/reorder', async (req, res) => {
             });
         }
 
-        let q1 = await config.knex("questions as q").select("q.id", "q.index")
+        let q1 = await config.knex("questions as q")
+        .select(
+        "q.id",
+        "q.index",
+        config.knex("questions").max("index").as("max")
+        .where("s.id", surveyid)
+        .andWhere("q.is_deleted", false)
+        )
         .join("surveys as s", "q.survey_id", "s.id")
         .where("s.id", surveyid)
-        .andWhere("q.id", questionid);
+        .andWhere("q.id", questionid)
+        .andWhere("q.is_deleted", false);
 
         if(q1.length === 0) {
             return res.status(404).send({
@@ -683,10 +743,22 @@ router.post('/:surveyid/questions/:questionid/reorder', async (req, res) => {
             });
         }
 
+        if(req.body.direction === 'UP' && q1[0].index <= 0) {
+            return res.status(400).send({
+                message: 'Cannot decrease index of first question'
+            });
+        }
+
+        if(req.body.direction === 'DOWN' && q1[0].index >= q1[0].max) {
+            return res.status(400).send({
+                message: 'Cannot increase index of last question'
+            });
+        }
+
         let q2 = await config.knex("questions as q").select("q.id", "q.index")
         .join("surveys as s", "q.survey_id", "s.id")
         .where("s.id", surveyid)
-        .andWhere("q.index", q1[0].index + delta);
+        .andWhere("q.index", (delta !== 0 ? q1[0].index + delta : req.body.index));
 
         if(q2.length === 0) {
             return res.status(400).send({
