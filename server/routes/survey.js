@@ -14,20 +14,22 @@ router.route('/')
 .get(async (req, res) => {
     debug(`GET: /surveys?${JSON.stringify(req.query)} ;`);
 
-    if(!req.user.id || req.user.role !== 'ADMIN') {
-        return res.status(403).send({
-            message: 'Unauthorized'
-        });
-    }
-
     try {
-        let surveysQuery = config.knex("surveys").orderBy("id");
+        let surveysQuery = config.knex("surveys as s")
+        .select("s.*");
 
-        if(!req.query.includeDeleted) {
-            surveysQuery = surveysQuery.where("is_deleted", false);
+        if(req.user.role === 'USER') {
+            surveysQuery = surveysQuery
+            .join("accesses as a", "s.id", "a.survey_id")
+            .where("a.user_id", req.user.id)
+            .andWhere("is_active", true);
+        } else {
+            if(!req.query.includeDeleted) {
+                surveysQuery = surveysQuery.where("s.is_deleted", false);
+            }
         }
 
-        const surveys = await surveysQuery;
+        const surveys = await surveysQuery.orderBy("s.id");
         return res.status(200).send(surveys);
     } catch(error) {
         debug(error);
@@ -86,35 +88,18 @@ router.route('/:surveyid')
     const surveyid = req.params.surveyid;
 
     try {
-        const optionsQuery = config.knex("question_option as qo")
-        .leftJoin("options as o", "qo.option_id", "o.id")
-        .select("o.*", "qo.index", "qo.id as qo_id", "qo.question_id");
-
-        const questionsQuery = config.knex("questions as q")
-        .leftJoin(optionsQuery.as("o"), "q.id", "o.question_id")
-        .select("q.*", config.knex.raw("to_json(array_remove(array_agg(o),NULL)) \"options\""))
-        .groupBy("q.id");
-
         let surveysQuery = config.knex("surveys as s")
-        .leftJoin(questionsQuery.as("q"), "s.id", "q.survey_id")
-        .select("s.*", config.knex.raw("to_json(array_remove(array_agg(q),NULL)) questions"))
-        .where("s.id", surveyid)
-        .groupBy("s.id");
+        .where("id", surveyid)
+        .groupBy("id");
 
         if(req.user.role !== 'ADMIN') {
-            surveysQuery = surveysQuery.andWhere("s.is_deleted", false);
+            surveysQuery = surveysQuery.andWhere("is_deleted", false);
         }
 
         const surveys = await surveysQuery;
 
         if(surveys.length > 0) {
-            const survey     = surveys[0];
-            survey.questions = _.chain(survey.questions)
-            .sortBy("index")
-            .map(function(question) {
-                question.options = _.sortBy(question.options, "index");
-                return question;
-            });
+            const survey = surveys[0];
             return res.status(200).send(survey);
         } else {
             return res.status(404).send({
@@ -273,7 +258,7 @@ router.post('/:surveyid/lock', async (req, res) => {
             .transacting(trx);
         });
 
-        if(surveys.length>0){
+        if(surveys.length > 0) {
             return res.status(200).send(surveys[0]);
         } else {
             return res.status(500).send({
@@ -344,7 +329,7 @@ router.post('/:surveyid/version', async (req, res) => {
             // Fetch linked questions
             rows = await config.knex("questions")
             .select("id", config.knex.raw(`${newSurvey.id} as survey_id`), "description",
-            "note", "mandatory", "type", "attachments","index")
+            "note", "mandatory", "type", "attachments", "index")
             .where("survey_id", survey.id)
             .andWhere("is_deleted", false);
 
@@ -439,7 +424,33 @@ router.post('/:surveyid/version', async (req, res) => {
  */
 router.route('/:surveyid/questions')
 .get(async (req, res) => {
+    debug(`GET: /surveys/${req.params.surveyid}/questions ;`);
+    const surveyid = req.params.surveyid;
 
+    try {
+        const optionsQuery = config.knex("question_option as qo")
+        .leftJoin("options as o", "qo.option_id", "o.id")
+        .select("o.*", "qo.index", "qo.id as qo_id", "qo.question_id");
+
+        const questionsQuery = config.knex("questions as q")
+        .leftJoin(optionsQuery.as("o"), "q.id", "o.question_id")
+        .select("q.*", config.knex.raw("to_json(array_remove(array_agg(o),NULL)) \"options\""))
+        .groupBy("q.id")
+        .where("q.survey_id", surveyid);
+
+        let questions = await questionsQuery;
+
+        questions = _.chain(questions)
+        .sortBy("index")
+        .map(function(question) {
+            question.options = _.sortBy(question.options, "index");
+            return question;
+        });
+        return res.status(200).send(questions);
+    } catch(error) {
+        debug(error);
+        return res.status(500).send(error);
+    }
 })
 .post(async (req, res) => {
     debug("POST: /:surveyid/questions", req.body);
@@ -516,13 +527,131 @@ router.route('/:surveyid/questions')
  */
 router.route('/:surveyid/questions/:questionid')
 .get(async (req, res) => {
+    debug(`GET: /surveys/${req.params.surveyid}/questions/${req.params.questionid} ;`);
 
+    const surveyid   = req.params.surveyid;
+    const questionid = req.params.questionid;
+
+    try {
+        const optionsQuery = config.knex("question_option as qo")
+        .leftJoin("options as o", "qo.option_id", "o.id")
+        .select("o.*", "qo.index", "qo.id as qo_id", "qo.question_id");
+
+        const questionsQuery = config.knex("questions as q")
+        .leftJoin(optionsQuery.as("o"), "q.id", "o.question_id")
+        .select("q.*", config.knex.raw("to_json(array_remove(array_agg(o),NULL)) \"options\""))
+        .groupBy("q.id")
+        .where("q.survey_id", surveyid)
+        .andWhere("q.id", questionid);
+
+        let questions = await questionsQuery;
+
+        if(questions.length > 0) {
+            const question   = questions[0];
+            question.options = _.sortBy(question.options, "index");
+            return res.status(200).send(question);
+        } else {
+            return res.status(404).send({
+                message: "Question not found"
+            });
+        }
+    } catch(error) {
+        debug(error);
+        return res.status(500).send(error);
+    }
 })
 .put(async (req, res) => {
 
 })
 .delete(async (req, res) => {
 
+});
+
+/**
+ * Moves question order up or down
+ */
+router.post('/:surveyid/questions/:questionid/reorder', async (req, res) => {
+    const surveyid   = req.params.surveyid;
+    const questionid = req.params.questionid;
+
+    debug(`GET: /surveys/${surveyid}/questions/${questionid}/reorder - ${JSON.stringify(req.body)};`);
+
+    if(!req.user.id || req.user.role !== 'ADMIN') {
+        return res.status(403).send({
+            message: 'Unauthorized'
+        });
+    }
+
+    try {
+        let delta = 0;
+        if(req.body.direction) {
+            if(["UP", "DOWN"].includes(req.body.direction)) {
+                delta = req.body.direction === "UP" ? -1 : 1;
+            } else {
+                return res.status(400).send({
+                    message: 'Incorrect reorder direction'
+                });
+            }
+        } else {
+            return res.status(400).send({
+                message: 'Reorder direction missing'
+            });
+        }
+
+        const rows = await config.knex("surveys")
+        .where("id", surveyid);
+
+        if(rows.length === 0) {
+            return res.status(404).send({
+                message: 'Survey not found'
+            });
+        }
+
+        if(rows[0].status === 'LOCKED') {
+            return res.status(400).send({
+                message: 'Locked survey cannot be modified'
+            });
+        }
+
+        if(rows[0].is_deleted) {
+            return res.status(400).send({
+                message: 'Deleted survey cannot be modified'
+            });
+        }
+
+        let q1 = await config.knex("questions as q").select("q.id", "q.index")
+        .join("surveys as s","q.survey_id", "s.id")
+        .where("s.id", surveyid)
+        .andWhere("q.id", questionid);
+
+        if(q1.length === 0) {
+            return res.status(404).send({
+                message: 'Question not found'
+            });
+        }
+
+        let q2                   = await config.knex("questions as q").select("q.id", "q.index")
+        .join("surveys as s","q.survey_id", "s.id")
+        .where("s.id", surveyid)
+        .andWhere("q.index", q1[0].index+delta);
+
+        if(q2.length === 0) {
+            return res.status(400).send({
+                message: 'Cannot reorder'
+            });
+        }
+
+        debug(q1,q2);
+
+        await Promise.all([
+            config.knex("questions").update({index: q1[0].index}).where("id",q2[0].id),
+            config.knex("questions").update({index: q2[0].index}).where("id",q1[0].id)
+        ]);
+        return res.status(200).send();
+    } catch(error) {
+        debug(error);
+        return res.status(500).send(error);
+    }
 });
 
 module.exports = router;

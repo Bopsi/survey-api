@@ -35,7 +35,6 @@ async function up() {
         table.boolean('is_deleted').defaultTo(false);
         table.timestamp('created_at').defaultTo(knex.fn.now(6));
         table.integer('index').unsigned().notNullable();
-        table.unique(['survey_id', 'index']);
     });
     await knex.schema.createTable('options', (table) => {
         table.increments();
@@ -51,7 +50,6 @@ async function up() {
         table.integer('option_id').references('id').inTable('options');
         table.boolean('is_deleted').defaultTo(false);
         table.integer('index').unsigned().notNullable();
-        table.unique(['question_id', 'index']);
     });
     await knex.schema.createTable('accesses', (table) => {
         table.increments();
