@@ -524,6 +524,48 @@ router.route('/:surveyid/questions')
 });
 
 /**
+ * GET: Retrieves list of options linked with survey
+ * POST: Creates a question for a survey
+ */
+router.route('/:surveyid/options')
+.get(async (req, res) => {
+    debug(`GET: /surveys/${req.params.surveyid}/options ;`);
+
+    const surveyid   = req.params.surveyid;
+
+    try {
+        let rows = config.knex("options")
+        .where("type", "CUSTOM")
+        .andWhere("is_deleted", false)
+        .andWhere("survey_id", surveyid);
+
+        return res.status(200).send(rows);
+
+    } catch(error) {
+        debug(error);
+        return res.status(500).send(error);
+    }
+})
+.post(async (req, res) => {
+    debug(`GET: /surveys/${req.params.surveyid}/options ;`);
+
+    const surveyid   = req.params.surveyid;
+
+    try {
+        let rows = config.knex("options")
+        .where("type", "CUSTOM")
+        .andWhere("is_deleted", false)
+        .andWhere("survey_id", surveyid);
+
+        return res.status(200).send(rows);
+
+    } catch(error) {
+        debug(error);
+        return res.status(500).send(error);
+    }
+})
+
+/**
  * GET: Retrieves a question by survey id and question id
  * PUT: Modifies a question
  * DELETE: Deletes a question
@@ -772,6 +814,114 @@ router.post('/:surveyid/questions/:questionid/reorder', async (req, res) => {
             config.knex("questions").update({index: q1[0].index}).where("id", q2[0].id),
             config.knex("questions").update({index: q2[0].index}).where("id", q1[0].id)
         ]);
+        return res.status(200).send();
+    } catch(error) {
+        debug(error);
+        return res.status(500).send(error);
+    }
+});
+
+/**
+ * Adds a new custom option or existing option to a question
+ */
+router.route('/:surveyid/questions/:questionid/options')
+.post(async (req, res) => {
+    const surveyid   = req.params.surveyid;
+    const questionid = req.params.questionid;
+
+    debug(`POST: /surveys/${surveyid}/questions/${questionid}/options - ${JSON.stringify(req.body)};`);
+
+    if(!req.user.id || req.user.role !== 'ADMIN') {
+        return res.status(403).send({
+            message: 'Unauthorized'
+        });
+    }
+
+    if(!req.body.optionid && !(req.body.value || req.body.description)) {
+        return res.status(400).send({
+            message: 'Req body does not contain optionid or option'
+        });
+    }
+
+    let rows = await config.knex("surveys as s")
+    .join("questions as q", "s.id", "q.survey_id")
+    .select("s.status", "s.is_deleted as survey_deleted", "q.is_deleted as question_deleted")
+    .where("s.id", surveyid).andWhere("q.id", questionid);
+
+    if(rows.length === 0) {
+        return res.status(404).send({
+            message: 'Question not found'
+        });
+    }
+
+    if(rows[0].status === 'LOCKED') {
+        return res.status(400).send({
+            message: 'Survey locked'
+        });
+    }
+
+    if(rows[0].survey_deleted) {
+        return res.status(400).send({
+            message: 'Survey deleted'
+        });
+    }
+
+    if(rows[0].question_deleted) {
+        return res.status(400).send({
+            message: 'Question deleted'
+        });
+    }
+
+    try {
+        // Link an existing option to question
+        if(req.body.optionid) {
+            let option = await config.knex("options").where("id", req.body.optionid);
+
+            if(option.length === 0) {
+                return res.status(404).send({
+                    message: 'Option not found'
+                });
+            }
+            option = option[0];
+
+            let index = await config.knex("question_option").max("index").where("question_id", questionid);
+            index     = index[0].max ? index[0].max + 1 : 1;
+
+            if(option.type === 'SYSTEM' || (option.type === 'CUSTOM' && option.survey_id === surveyid)) {
+                await config.knex("question_option").insert({
+                    question_id: questionid,
+                    option_id: option.id,
+                    index: index
+                });
+            } else {
+                return res.status(400).send({
+                    message: 'This option does not belong in the survey'
+                });
+            }
+        } else {
+            let index = await config.knex("question_option").max("index").where("question_id", questionid);
+            index     = index[0].max ? index[0].max + 1 : 1;
+
+            await config.knex.transaction(async trx => {
+                let option = await config.knex("options").insert({
+                    value: null,
+                    description: null,
+                    type: 'CUSTOM',
+                    survey_id: surveyid
+                })
+                .returning("*")
+                .transacting(trx);
+
+                option = option[0];
+
+                await config.knex("question_option").insert({
+                    question_id: questionid,
+                    option_id: option.id,
+                    index: index
+                })
+                .transacting(trx);
+            });
+        }
         return res.status(200).send();
     } catch(error) {
         debug(error);

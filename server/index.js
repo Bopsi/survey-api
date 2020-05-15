@@ -10,7 +10,8 @@ app.use(bodyParser.urlencoded({
 }));
 
 const user   = require("./routes/user"),
-      survey = require("./routes/survey");
+      survey = require("./routes/survey"),
+      option = require("./routes/option");
 
 const middleware = require("./utils/Middleware");
 
@@ -20,6 +21,7 @@ app.use("/health", (req, res, next) => {
 
 app.use("/users", user);
 app.use("/surveys", middleware.verifyToken, survey);
+app.use("/options", middleware.verifyToken, option);
 
 app.use((err, req, res, next) => {
     res.status(err.status || 500);
