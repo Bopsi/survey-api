@@ -48,8 +48,8 @@ async function up() {
         table.increments();
         table.integer('question_id').references('id').inTable('questions');
         table.integer('option_id').references('id').inTable('options');
-        table.boolean('is_deleted').defaultTo(false);
         table.integer('index').unsigned().notNullable();
+        table.unique(["question_id","option_id"])
     });
     await knex.schema.createTable('accesses', (table) => {
         table.increments();
