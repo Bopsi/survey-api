@@ -33,6 +33,7 @@ async function up() {
         table.enum('type', ['TEXT', 'RADIO', 'CHECKBOX', 'NONE']).defaultTo('TEXT');
         table.boolean('attachments').defaultTo(false);
         table.boolean('is_deleted').defaultTo(false);
+        table.boolean('is_answered').defaultTo(false);
         table.timestamp('created_at').defaultTo(knex.fn.now(6));
         table.integer('index').unsigned().notNullable();
     });
@@ -74,7 +75,6 @@ async function up() {
         table.integer('question_id').references('id').inTable('questions');
         table.text('answer').nullable();
         table.integer('option_id').unsigned().nullable();
-        table.boolean('is_answered').defaultTo(false);
         table.unique(['record_id', 'question_id']);
     });
 }
