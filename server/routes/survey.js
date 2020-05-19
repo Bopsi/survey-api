@@ -1129,10 +1129,10 @@ router.route('/:surveyid/records')
     debug(`GET : /surveys/${req.params.surveyid}/records ;`);
 
     let query = config.knex("surveys as s")
-    .join("accesses as x","s.id","x.survey_id")
+    .join("accesses as x", "s.id", "x.survey_id")
     .leftJoin("records as r", "s.id", "r.survey_id")
     .leftJoin("users as u", "r.created_by", "u.id")
-    .select("r.*","u.first_name","u.last_name","u.email")
+    .select("r.*", "u.first_name", "u.last_name", "u.email")
     .where("x.user_id", req.user.id)
     .andWhere("r.is_deleted", false)
     .andWhere("s.id", req.params.surveyid);
@@ -1142,7 +1142,85 @@ router.route('/:surveyid/records')
     return res.status(200).send(rows);
 })
 .post(async (req, res) => {
+    debug(`POST : /surveys/${req.params.surveyid}/records - ${JSON.stringify(req.body)};`);
 
+    let survey = await config.knex("surveys")
+    .where("id", req.params.surveyid);
+
+    if(survey.length === 0) {
+        return res.status(404).send({
+            message: "Survey not found"
+        });
+    }
+    survey = survey[0];
+
+    if(survey.is_deleted) {
+        return res.status(400).send({
+            message: "Cannot create record of deleted survey"
+        });
+    }
+
+    if(survey.status === 'UNLOCKED') {
+        return res.status(400).send({
+            message: "Cannot create record of unlocked survey"
+        });
+    }
+
+    let access = await config.knex("accesses")
+    .where("survey_id", req.params.surveyid)
+    .andWhere("user_id", req.user.id);
+
+    if(access.length === 0 || !access[0].is_active) {
+        return res.status(403).send({
+            message: "Unauthorized"
+        });
+    }
+
+    if(!req.body.subject_name || !req.body.subject_description) {
+        return res.status(400).send({
+            message: "Subject name or description missing"
+        });
+    }
+
+    try {
+        await config.knex.transaction(async (tx) => {
+            let record = await config.knex("records").insert({
+                survey_id: survey.id,
+                created_by: req.user.id,
+                subject_name: req.body.subject_name,
+                subject_description: req.body.subject_description,
+            })
+            .returning("id")
+            .transacting(tx);
+
+            let recordid = record[0].id;
+
+            let questions = await config.knex("questions").select("id")
+            .where("survey_id", survey.id)
+            .andWhere("is_deleted", false)
+            .orderBy("index");
+
+            let answers = [];
+
+            questions.forEach(q=>{
+                answers.push({
+                    record_id: recordid,
+                    question_id: q.id,
+                    answer: null,
+                    option_id: null
+                });
+            });
+
+            await config.knex("answers").insert(answers).transacting(tx);
+
+            return res.status(200).send();
+        });
+    } catch(error) {
+        return res.status(403).send({
+            error: error,
+            message: "Internal server error"
+        })
+    }
 });
 
 /**
@@ -1153,14 +1231,14 @@ router.route('/:surveyid/records/:recordid')
     debug(`GET : /surveys/${req.params.surveyid}/records/${req.params.recordid} ;`);
 
     const rows = await config.knex("surveys as s")
-    .join("accesses as x","s.id","x.survey_id")
+    .join("accesses as x", "s.id", "x.survey_id")
     .leftJoin("records as r", "s.id", "r.survey_id")
     .leftJoin("users as u", "r.created_by", "u.id")
     .leftJoin("answers as a", "u.id", "a.id")
-    .select("r.*","u.first_name","u.last_name","u.email")
+    .select("r.*", "u.first_name", "u.last_name", "u.email")
     .where("x.user_id", req.user.id)
     .andWhere("s.id", req.params.surveyid)
-    .andWhere("r.id",req.params.recordid)
+    .andWhere("r.id", req.params.recordid)
 
     return res.status(200).send(rows);
 })
@@ -1168,29 +1246,29 @@ router.route('/:surveyid/records/:recordid')
     debug(`DELETE : /surveys/${req.params.surveyid}/records/${req.params.recordid} ;`);
 
     const rows = await config.knex("surveys as s")
-    .join("accesses as x","s.id","x.survey_id")
+    .join("accesses as x", "s.id", "x.survey_id")
     .leftJoin("records as r", "s.id", "r.survey_id")
     .leftJoin("users as u", "r.created_by", "u.id")
-    .select("s.status","s.is_deleted as survey_deleted",
-    "r.is_deleted as record_deleted","r.created_by")
+    .select("s.status", "s.is_deleted as survey_deleted",
+    "r.is_deleted as record_deleted", "r.created_by")
     .where("x.user_id", req.user.id)
     .andWhere("s.id", req.params.surveyid)
-    .andWhere("r.id",req.params.recordid);
+    .andWhere("r.id", req.params.recordid);
 
-    if(rows.length === 0 || rows[0].record_deleted){
+    if(rows.length === 0 || rows[0].record_deleted) {
         return res.status(404).send({
             message: "Record not found"
         })
     }
 
-    if(rows[0].survey_deleted){
+    if(rows[0].survey_deleted) {
         return res.status(404).send({
             message: "Survey not found"
         })
     }
 
-    if(req.user.role === 'ADMIN' || (req.user.role === 'USER' && rows[0].created_by === req.user.id)){
-        await config.knex("records").update({ is_deleted: true }).where("id",req.params.recordid);
+    if(req.user.role === 'ADMIN' || (req.user.role === 'USER' && rows[0].created_by === req.user.id)) {
+        await config.knex("records").update({is_deleted: true}).where("id", req.params.recordid);
 
         return res.status(200).send();
     } else {
