@@ -1193,7 +1193,7 @@ router.route('/:surveyid/records')
             .returning("id")
             .transacting(tx);
 
-            let recordid = record[0].id;
+            let recordid = record[0];
 
             let questions = await config.knex("questions").select("id")
             .where("survey_id", survey.id)
@@ -1202,12 +1202,10 @@ router.route('/:surveyid/records')
 
             let answers = [];
 
-            questions.forEach(q=>{
+            questions.forEach(q => {
                 answers.push({
                     record_id: recordid,
-                    question_id: q.id,
-                    answer: null,
-                    option_id: null
+                    question_id: q.id
                 });
             });
 
@@ -1240,7 +1238,11 @@ router.route('/:surveyid/records/:recordid')
     .andWhere("s.id", req.params.surveyid)
     .andWhere("r.id", req.params.recordid)
 
-    return res.status(200).send(rows);
+    if(rows.length === 0) {
+        return res.status(404).send();
+    }
+
+    return res.status(200).send(rows[0]);
 })
 .delete(async (req, res) => {
     debug(`DELETE : /surveys/${req.params.surveyid}/records/${req.params.recordid} ;`);
@@ -1275,6 +1277,135 @@ router.route('/:surveyid/records/:recordid')
         return res.status(403).send({
             message: "Unauthorized"
         })
+    }
+});
+
+/**
+ * GET - retrieves all answers of a record
+ * POST - saves n answers of a record
+ */
+router.route('/:surveyid/records/:recordid/answers')
+.get(async (req, res) => {
+    const surveyid = req.params.surveyid;
+    const recordid = req.params.recordid;
+    debug(`GET : /surveys/${surveyid}/records/${recordid}/answers -  ${JSON.stringify(req.body)};`);
+
+    let survey = await config.knex("surveys")
+    .where("id", surveyid);
+
+    if(survey.length === 0) {
+        return res.status(404).send({
+            message: "Survey not found"
+        });
+    }
+    survey = survey[0];
+
+    if(survey.is_deleted) {
+        return res.status(400).send({
+            message: "Cannot answer deleted survey"
+        });
+    }
+
+    if(survey.status === 'UNLOCKED') {
+        return res.status(400).send({
+            message: "Cannot answer unlocked survey"
+        });
+    }
+
+    let access = await config.knex("accesses")
+    .where("survey_id", surveyid)
+    .andWhere("user_id", req.user.id);
+
+    if(access.length === 0 || !access[0].is_active) {
+        return res.status(403).send({
+            message: "Unauthorized"
+        });
+    }
+
+    try {
+        const optionsQuery = config.knex("question_option as qo")
+        .leftJoin("options as o", "qo.option_id", "o.id")
+        .select("o.*", "qo.index", "qo.id as qo_id", "qo.question_id");
+
+        const questionsQuery = config.knex("questions as q")
+        .join("answers as a", "q.id", "a.question_id")
+        .leftJoin(optionsQuery.as("o"), "q.id", "o.question_id")
+        .select("q.*", config.knex.raw("to_json(array_remove(array_agg(o),NULL)) \"options\""),
+        "a.id as answer_id", "text", "radio", "checkbox")
+        .groupBy("q.id", "a.id")
+        .where("q.survey_id", surveyid)
+        .andWhere("a.record_id", recordid)
+        .andWhere("q.is_deleted", false)
+        .andWhere("a.record_id", recordid);
+
+        let questions = await questionsQuery;
+
+        questions = _.chain(questions)
+        .sortBy("index")
+        .map(function(question) {
+            question.options = _.sortBy(question.options, "index");
+            return question;
+        });
+        return res.status(200).send(questions);
+    } catch(e) {
+        debug(e);
+        return res.status(500).send({
+            error: e,
+            message: 'Internal Server Error'
+        });
+    }
+})
+.post(async (req, res) => {
+    debug(`POST : /surveys/${req.params.surveyid}/records/${req.params.recordid}/answers -  ${JSON.stringify(req.body)};`);
+
+    let survey = await config.knex("surveys")
+    .where("id", req.params.surveyid);
+
+    if(survey.length === 0) {
+        return res.status(404).send({
+            message: "Survey not found"
+        });
+    }
+    survey = survey[0];
+
+    if(survey.is_deleted) {
+        return res.status(400).send({
+            message: "Cannot answer deleted survey"
+        });
+    }
+
+    if(survey.status === 'UNLOCKED') {
+        return res.status(400).send({
+            message: "Cannot answer unlocked survey"
+        });
+    }
+
+    let access = await config.knex("accesses")
+    .where("survey_id", req.params.surveyid)
+    .andWhere("user_id", req.user.id);
+
+    if(access.length === 0 || !access[0].is_active) {
+        return res.status(403).send({
+            message: "Unauthorized"
+        });
+    }
+
+    try {
+        await config.knex("answers").update({
+            text: req.body.text,
+            radio: req.body.radio,
+            checkbox: req.body.checkbox?JSON.stringify(req.body.checkbox):req.body.checkbox
+        })
+        .where("id", req.body.id)
+        .andWhere("record_id", req.params.recordid)
+        .andWhere("question_id", req.body.question_id)
+        return res.status(200).send({});
+    } catch(e) {
+        debug(e);
+        return res.status(500).send({
+            error: e,
+            message: 'Internal Server Error'
+        });
     }
 });
 

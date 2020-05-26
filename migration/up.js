@@ -1,6 +1,6 @@
-const debug = require("debug")("api:migration:up");
+const debug  = require("debug")("api:migration:up");
 const config = require("../config");
-const knex = config.knex;
+const knex   = config.knex;
 
 async function up() {
     await knex.schema.createTable('users', (table) => {
@@ -50,14 +50,14 @@ async function up() {
         table.integer('question_id').references('id').inTable('questions');
         table.integer('option_id').references('id').inTable('options');
         table.integer('index').unsigned().notNullable();
-        table.unique(["question_id","option_id"])
+        table.unique(["question_id", "option_id"])
     });
     await knex.schema.createTable('accesses', (table) => {
         table.increments();
         table.integer('survey_id').references('id').inTable('surveys');
         table.integer('user_id').references('id').inTable('users');
         table.boolean('is_active').defaultTo(true);
-        table.unique(['survey_id','user_id']);
+        table.unique(['survey_id', 'user_id']);
     });
     await knex.schema.createTable('records', (table) => {
         table.increments();
@@ -73,19 +73,20 @@ async function up() {
         table.increments();
         table.integer('record_id').references('id').inTable('records');
         table.integer('question_id').references('id').inTable('questions');
-        table.text('answer').nullable();
-        table.integer('option_id').unsigned().nullable();
+        table.text('text').nullable();
+        table.integer('radio').unsigned().nullable();
+        table.json('checkbox').unsigned().defaultTo([]);
         table.unique(['record_id', 'question_id']);
     });
 }
 
 up()
-    .then(res => {
-        debug("Migration Sucess");
-        process.exit();
-    })
-    .catch(error => {
-        debug("Migration Error");
-        debug("%O", error);
-        process.exit();
-    });
+.then(res => {
+    debug("Migration Sucess");
+    process.exit();
+})
+.catch(error => {
+    debug("Migration Error");
+    debug("%O", error);
+    process.exit();
+});
