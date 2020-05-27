@@ -1282,7 +1282,8 @@ router.route('/:surveyid/records/:recordid')
 
 /**
  * GET - retrieves all answers of a record
- * POST - saves n answers of a record
+ * PUT - saves answer of a record
+ * POST - saves and submits answers of a record
  */
 router.route('/:surveyid/records/:recordid/answers')
 .get(async (req, res) => {
@@ -1355,8 +1356,8 @@ router.route('/:surveyid/records/:recordid/answers')
         });
     }
 })
-.post(async (req, res) => {
-    debug(`POST : /surveys/${req.params.surveyid}/records/${req.params.recordid}/answers -  ${JSON.stringify(req.body)};`);
+.put(async (req, res) => {
+    debug(`PUT : /surveys/${req.params.surveyid}/records/${req.params.recordid}/answers -  ${JSON.stringify(req.body)};`);
 
     let survey = await config.knex("surveys")
     .where("id", req.params.surveyid);
@@ -1394,11 +1395,74 @@ router.route('/:surveyid/records/:recordid/answers')
         await config.knex("answers").update({
             text: req.body.text,
             radio: req.body.radio,
-            checkbox: req.body.checkbox?JSON.stringify(req.body.checkbox):req.body.checkbox
+            checkbox: req.body.checkbox ? JSON.stringify(req.body.checkbox) : req.body.checkbox
         })
         .where("id", req.body.id)
         .andWhere("record_id", req.params.recordid)
         .andWhere("question_id", req.body.question_id)
+        return res.status(200).send({});
+    } catch(e) {
+        debug(e);
+        return res.status(500).send({
+            error: e,
+            message: 'Internal Server Error'
+        });
+    }
+})
+.post(async (req, res) => {
+    debug(`POST : /surveys/${req.params.surveyid}/records/${req.params.recordid}/answers -  ${JSON.stringify(req.body)};`);
+
+    let survey = await config.knex("surveys")
+    .where("id", req.params.surveyid);
+
+    if(survey.length === 0) {
+        return res.status(404).send({
+            message: "Survey not found"
+        });
+    }
+    survey = survey[0];
+
+    if(survey.is_deleted) {
+        return res.status(400).send({
+            message: "Cannot answer deleted survey"
+        });
+    }
+
+    if(survey.status === 'UNLOCKED') {
+        return res.status(400).send({
+            message: "Cannot answer unlocked survey"
+        });
+    }
+
+    let access = await config.knex("accesses")
+    .where("survey_id", req.params.surveyid)
+    .andWhere("user_id", req.user.id);
+
+    if(access.length === 0 || !access[0].is_active) {
+        return res.status(403).send({
+            message: "Unauthorized"
+        });
+    }
+
+    try {
+        // and ((q.type = 'TEXT' and a.text is not null) or (q.type = 'RADIO' and a.radio is not null) or (q.type = 'CHECKBOX' and a.checkbox is not null));
+
+        let count = await config.knex("answers as a")
+        .join("questions as q", "a.question_id", "q.id")
+        .count("*")
+        .where("a.record_id", Number(req.params.recordid))
+        .andWhere(config.knex.raw("(q.type = 'TEXT' and a.text is null) or (q.type = 'RADIO' and a.radio is null)"));
+
+        debug("count",count[0].count);
+
+        if(Number(count[0].count) !== 0) {
+            return res.status(500).send({
+                message: "All mandatory questions must be answered"
+            });
+        }
+
+        await config.knex("records").update({"locked_at": config.knex.fn.now(6)}).where("id", Number(req.params.recordid));
+
         return res.status(200).send({});
     } catch(e) {
         debug(e);

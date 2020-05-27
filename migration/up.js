@@ -75,7 +75,7 @@ async function up() {
         table.integer('question_id').references('id').inTable('questions');
         table.text('text').nullable();
         table.integer('radio').unsigned().nullable();
-        table.json('checkbox').unsigned().defaultTo([]);
+        table.json('checkbox').unsigned().defaultTo(JSON.stringify([]));
         table.unique(['record_id', 'question_id']);
     });
 }
